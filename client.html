@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title></title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>GPS Diff Client</title>
+    <link href="css/style.css" rel="stylesheet">
+</head>
+
+<body>
+    <div class="center" style="position: relative">
+        <h1>GPS Diff Client</h1>
+        <div>
+            <label>Station</label>
+            <select id="stations"></select>
+            <button id="startButton" onclick="doStart()">Start</button>
+        </div>
+        <div>
+            <button id="startRouteButton" onclick="doStartRecording()">Start Recording</button>
+            <button id="endRouteButton" onclick="doStopRecording()">End Recording</button>
+        </div>
+        <div>
+            <label>Current Location</label>
+            <span id="current-location"></span>
+        </div>
+        <div>
+            <label>Distance Traveled</label>
+            <span id="distance">-- not implemented --</span>
+        </div>
+        <div>
+            <h2>Current Recording</h2>
+            <pre id="recording-log" class="scrolled"></pre>
+        </div>
+        <div>
+            <h2>Past Recordings</h2>
+            <div id="recordings-list" class="scrolled"></div>
+        </div>
+        <div>
+            <h2>Selected Recording JSON</h2>
+            <pre id="recording-json"></pre>
+        </div>
+    </div>
+
+    <script src="js\geo-utils.js"></script>
+    <script src="js\gps-diff-agent.js"></script>
+    <script src="js\client-model.js"></script>
+    <script>
+        var recordingLog = document.getElementById("recording-log");
+        var recordingsList = document.getElementById("recordings-list");
+        var recordingJson = document.getElementById("recording-json");
+        var currentLocation = document.getElementById("current-location");
+        var client = new ClientModel();
+        var isRecording = false;
+        client.getStations()
+            .then(response => {
+                stations.innerHTML = "";
+                for (let i = 0; i < response.Stations.length; i++) {
+                    let station = response.Stations[i];
+                    let option = document.createElement("option");
+                    option.value = station.Id.toString();
+                    option.text = `${station.Name} (${station.Id})`;
+                    stations.appendChild(option);
+                }
+            });
+        client.onUpdate = locationUpdate;
+
+        function locationUpdate(l) {
+            if (isRecording) {
+                let displayStr = `${l.When.toUTCString()} ${l.LatitudeAdjusted.toFixed(8)},${l.LongitudeAdjusted.toFixed(8)} ${((l.AltitudeAdjusted | 0) * 3.2808399).toFixed(0)}ft Unadjusted-> ${l.Latitude.toFixed(8)},${l.Longitude.toFixed(8)} ${((l.Altitude | 0) * 3.2808399).toFixed(0)}ft\n`;
+                recordingLog.insertAdjacentText('afterbegin', displayStr);
+            }
+
+            currentLocation.innerHTML = "";
+            let cl = `${l.LatitudeAdjusted.toFixed(8)},${l.LongitudeAdjusted.toFixed(8)} ${l.Accuracy.toFixed(0)}+/- Alt:${l.AltitudeAdjusted.toFixed(0)}`;
+            currentLocation.appendChild(document.createTextNode(cl));
+        };
+
+        function doStart() {
+            let stationId = parseInt(stations.value);
+            console.log(`Using station ${stations.text} ${stationId}`);
+            client.start(stationId);
+        }
+
+        function doStartRecording() {
+            isRecording = true;
+            recordingLog.innerHTML = "";
+            client.startRecording();
+            updateRecordings();
+        }
+
+        function doStopRecording() {
+            isRecording = false;
+            client.stopRecording();
+            updateRecordings();
+        }
+
+        function updateRecordings() {
+            // update the recordings
+            recordingsList.innerHTML = "";
+            let recordings = client.recordings;
+            for (let i = 0; i < recordings.length; i++) {
+                let r = recordings[i];
+                // build a list item
+                let item = document.createElement("div");
+                let link = document.createElement("a");
+                link.href = "#";
+
+                let startDate = new Date(r.start);
+                let endDate = new Date(r.end);
+                link.appendChild(document.createTextNode(
+                    `${startDate.toUTCString()}-${endDate.toUTCString()} Distance: ${r.distance(false)} AdjustedDistance: ${r.distance(true)}`));
+                link.value = r;
+                link.onclick = function (evt) { recordingClicked(evt.target.value) };
+                item.appendChild(link);
+                recordingsList.appendChild(item);
+            }
+
+            function recordingClicked(recording) {
+                recordingJson.innerHTML = "";
+                recordingJson.appendChild(document.createTextNode(JSON.stringify(recording, null, 4)));
+            }
+        }
+
+    </script>
+</body>
+
+</html>

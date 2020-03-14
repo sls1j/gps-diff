@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>GPS Diff Station</title>
+</head>
+
+<style>
+    html,
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 48px;
+    }
+
+    .box {
+        position: relative;
+    }
+
+    .inner_box_top {
+        position: absolute;
+        top: 0;
+        height: 48px;
+    }
+
+    .inner_box_bottom {
+        position: absolute;
+        width: 100%;
+        top: 48px;
+        bottom: 0;
+    }
+</style>
+
+<body>
+    <h1>GPS Diff Station</h1>
+    <div>
+        <label>Station</label>
+        <select id="stations"></select>
+        <button id="startButton" onclick="doStart()">Start</button>
+    </div>
+    <pre id="log">
+
+    </pre>
+    <script src="js\geo-utils.js"></script>
+    <script src="js\gps-diff-agent.js"></script>
+    <script src="js\station-model.js"></script>
+    <script>
+        var station = new StationModel();
+        station.onUpdate = locationUpdate;
+
+        var stations = document.getElementById("stations");
+
+        station.getStations()
+            .then(response => {
+                stations.innerHTML = "";
+                for(let i=0; i < response.Stations.length; i++ ){
+                    let  station = response.Stations[i];
+                    let option = document.createElement("option");
+                    option.value = station.Id.toString();
+                    option.text = `${station.Name} (${station.Id})`;
+                    stations.appendChild(option);
+                }
+            });
+
+        var log = document.getElementById("log");
+
+        function doStart() {
+            let stationId = parseInt(stations.value);
+            console.log(stationId);
+
+            station.start(stationId);
+        }
+
+        function locationUpdate(l) {
+            let displayStr = `${l.When.toUTCString()} ${l.Latitude.toFixed(8)},${l.Longitude.toFixed(8)} ${((l.Altitude | 0) * 3.2808399).toFixed(0)}ft Accuracy ${(l.Accuracy * 3.2808399).toFixed(0)}ft+/- ${l.AltitudeAccuracy}m+/-\n`;
+            log.insertAdjacentText('afterbegin', displayStr);
+            if (log.childNodes.length > 100)
+                log.removeChild(log.lastChild);
+        };
+    </script>
+</body>
+
+</html>
